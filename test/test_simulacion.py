@@ -4,7 +4,7 @@ import unittest
 from core.parametros import Parametros
 from core.modelo import calcular_tasa_humedad
 from core.control import Controlador
-from core.simulacion import simular
+from core.simulacion import simular, Simulador
 from core.modelo import calcular_tasa_temperatura
 from core.modelo import calcular_factores_crecimiento
 from core.modelo import calcular_tasa_crecimiento
@@ -161,6 +161,22 @@ class TestGreenObserver(unittest.TestCase):
 
         self.assertEqual(tasa, 0.0)
 
+    def test_simulacion_incremental_completa(self):
+        p = Parametros()
+        p.duracion = 10.0
+        p.paso_tiempo = 1.0
+
+        # Ejecución habitual.
+        datos_completos = simular(p)
+
+        # Ejecución paso a paso.
+        simulador = Simulador(p)
+
+        while not simulador.terminado:
+            simulador.paso()
+
+        # Todas las variables deben coincidir.
+        self.assertEqual(simulador.datos, datos_completos)
 
 if __name__ == "__main__":
     unittest.main()

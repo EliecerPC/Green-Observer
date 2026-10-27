@@ -4,8 +4,7 @@ from tkinter import ttk
 import math
 
 from core.escenarios import obtener_escenarios
-from core.simulacion import simular
-
+from core.simulacion import Simulador
 
 def mezclar_colores(color1, color2, proporcion):
     """Mezcla dos colores hexadecimales."""
@@ -37,7 +36,12 @@ def abrir_invernadero():
     # Obtener el escenario y ejecutar el modelo matemático.
     escenarios = obtener_escenarios()
     parametros = escenarios["Día normal"]
-    resultados = simular(parametros)
+
+    simulador = Simulador(parametros)
+
+    # Calcular y guardar el estado inicial (t = 0).
+    simulador.paso()
+    resultados = simulador.datos
 
     # Panel de indicadores.
     panel_datos = ttk.Frame(ventana)
@@ -171,8 +175,12 @@ def abrir_invernadero():
         nonlocal indice_actual, tarea_actualizacion
 
         if indice_actual >= len(resultados["tiempo"]):
-            tarea_actualizacion = None
-            return
+            if simulador.terminado:
+                tarea_actualizacion = None
+                return
+
+            # Calcular el siguiente instante cuando sea necesario.
+            simulador.paso()
 
         # Actualizar los indicadores.
         etiqueta_temperatura.config(
@@ -292,7 +300,7 @@ def abrir_invernadero():
         # Avanzar al siguiente instante simulado.
         indice_actual += 1
 
-        if indice_actual < len(resultados["tiempo"]):
+        if not simulador.terminado:
             velocidad = float(
                 velocidad_var.get().replace("x", "")
             )
@@ -318,26 +326,29 @@ def abrir_invernadero():
     def iniciar_simulacion():
         nonlocal tarea_actualizacion, pausado
 
-        if pausado:
+        if tarea_actualizacion is None and not simulador.terminado:
             pausado = False
 
-            if indice_actual < len(resultados["tiempo"]):
-                velocidad = float(
-                    velocidad_var.get().replace("x", "")
-                )
+            velocidad = float(
+                velocidad_var.get().replace("x", "")
+            )
 
-                intervalo = int(1000 / velocidad)
+            intervalo = int(1000 / velocidad)
 
-                tarea_actualizacion = ventana.after(
-                    intervalo,
-                    actualizar_datos
-                )
+            tarea_actualizacion = ventana.after(
+                intervalo,
+                actualizar_datos
+            )
 
     def reiniciar_simulacion():
-        nonlocal indice_actual, tarea_actualizacion, pausado
+        nonlocal indice_actual, tarea_actualizacion, pausado, resultados
 
         if tarea_actualizacion is not None:
             ventana.after_cancel(tarea_actualizacion)
+
+        simulador.reiniciar()
+        simulador.paso()
+        resultados = simulador.datos
 
         indice_actual = 0
         pausado = False

@@ -12,18 +12,9 @@ from core.modelo import (
 from core.control import Controlador
 
 
-def simular(p: Parametros) -> dict:
-    """Ejecuta la simulación y devuelve los datos de cada instante."""
-
-    p.validar()
-    controlador = Controlador(p)
-
-    tiempo = 0.0
-    temperatura = p.temperatura_inicial
-    humedad = p.humedad_inicial
-    crecimiento = p.crecimiento_inicial
-
-    datos = {
+def _crear_datos() -> dict:
+    """Crea la estructura donde se guardarán los resultados."""
+    return {
         "tiempo": [],
         "hora": [],
         "temperatura": [],
@@ -44,38 +35,70 @@ def simular(p: Parametros) -> dict:
         "paso_aplicado": [],
     }
 
-    while tiempo <= p.duracion + 1e-9:
-        hora = calcular_hora_del_dia(tiempo, p)
 
-        # 1. Calcular las condiciones ambientales.
+class Simulador:
+    """Permite ejecutar la simulación un instante a la vez."""
+
+    def __init__(self, p: Parametros):
+        self.p = p
+        self.p.validar()
+        self.reiniciar()
+
+    def reiniciar(self):
+        """Restablece las condiciones iniciales del invernadero."""
+        self.controlador = Controlador(self.p)
+        self.tiempo = 0.0
+        self.temperatura = self.p.temperatura_inicial
+        self.humedad = self.p.humedad_inicial
+        self.crecimiento = self.p.crecimiento_inicial
+        self.datos = _crear_datos()
+        self.terminado = False
+
+    def paso(self) -> dict | None:
+        """
+        Registra el instante actual y calcula el siguiente estado
+        usando el método de Euler.
+
+        Devuelve los datos del instante registrado.
+        Devuelve None cuando la simulación ya terminó.
+        """
+        if self.terminado:
+            return None
+
+        p = self.p
+        tiempo = self.tiempo
+        temperatura = self.temperatura
+        humedad = self.humedad
+        crecimiento = self.crecimiento
+
+        hora = calcular_hora_del_dia(tiempo, p)
         temperatura_ambiental = calcular_temperatura_ambiental(
             tiempo, p
         )
         luz_natural = calcular_luminosidad_natural(tiempo, p)
 
-        # 2. Evaluar los mecanismos de control.
-        eventos = controlador.evaluar(
+        eventos = self.controlador.evaluar(
             tiempo,
             temperatura,
             humedad,
             luz_natural,
             hora,
         )
-        datos["eventos"].extend(eventos)
+        self.datos["eventos"].extend(eventos)
 
-        # La luz artificial se suma a la natural, sin superar el 100 %.
         luz_artificial = (
-            p.luminosidad_artificial if controlador.luz else 0.0
+            p.luminosidad_artificial
+            if self.controlador.luz
+            else 0.0
         )
         luminosidad_total = min(
             100.0, luz_natural + luz_artificial
         )
 
-        # 3. Calcular las tasas de cambio.
         evaporacion = calcular_evaporacion(temperatura, p)
 
         aporte_riego = (
-            p.aporte_riego if controlador.riego else 0.0
+            p.aporte_riego if self.controlador.riego else 0.0
         )
         tasa_humedad = calcular_tasa_humedad(
             aporte_riego, evaporacion
@@ -85,7 +108,7 @@ def simular(p: Parametros) -> dict:
             temperatura,
             temperatura_ambiental,
             luminosidad_total,
-            controlador.ventilacion,
+            self.controlador.ventilacion,
             p,
         )
 
@@ -97,52 +120,60 @@ def simular(p: Parametros) -> dict:
             p,
         )
 
-        # Guardar los valores intermedios de este instante.
-        datos["aporte_riego"].append(aporte_riego)
-        datos["tasa_humedad"].append(tasa_humedad)
-        datos["tasa_temperatura"].append(tasa_temperatura)
-        datos["tasa_crecimiento"].append(tasa_crecimiento)
-
-        # 4. Guardar el estado actual para las gráficas y los informes.
-        datos["tiempo"].append(tiempo)
-        datos["hora"].append(hora)
-        datos["temperatura"].append(temperatura)
-        datos["temperatura_ambiental"].append(
-            temperatura_ambiental
-        )
-        datos["humedad"].append(humedad)
-        datos["crecimiento"].append(crecimiento)
-        datos["luminosidad_natural"].append(luz_natural)
-        datos["luminosidad_total"].append(luminosidad_total)
-        datos["evaporacion"].append(evaporacion)
-        datos["riego"].append(controlador.riego)
-        datos["ventilacion"].append(controlador.ventilacion)
-        datos["luz_artificial"].append(controlador.luz)
-
-        # Determinar cuánto tiempo abarca el siguiente paso.
-        # En el último instante no se aplica un nuevo paso.
         if tiempo >= p.duracion - 1e-9:
             dt = 0.0
         else:
             dt = min(p.paso_tiempo, p.duracion - tiempo)
 
-        datos["paso_aplicado"].append(dt)
+        # Guardar todos los resultados del instante actual.
+        valores = {
+            "tiempo": tiempo,
+            "hora": hora,
+            "temperatura": temperatura,
+            "temperatura_ambiental": temperatura_ambiental,
+            "humedad": humedad,
+            "crecimiento": crecimiento,
+            "luminosidad_natural": luz_natural,
+            "luminosidad_total": luminosidad_total,
+            "evaporacion": evaporacion,
+            "riego": self.controlador.riego,
+            "ventilacion": self.controlador.ventilacion,
+            "luz_artificial": self.controlador.luz,
+            "aporte_riego": aporte_riego,
+            "tasa_humedad": tasa_humedad,
+            "tasa_temperatura": tasa_temperatura,
+            "tasa_crecimiento": tasa_crecimiento,
+            "paso_aplicado": dt,
+        }
 
-        # Si llegamos al final, no hay otro estado que calcular.
+        for clave, valor in valores.items():
+            self.datos[clave].append(valor)
+
         if dt == 0.0:
-            break
+            self.terminado = True
+        else:
+            # Método de Euler: nuevo estado = estado + tasa * dt.
+            self.humedad = min(
+                100.0,
+                max(0.0, humedad + tasa_humedad * dt),
+            )
+            self.temperatura = (
+                temperatura + tasa_temperatura * dt
+            )
+            self.crecimiento = min(
+                p.crecimiento_limite,
+                max(0.0, crecimiento + tasa_crecimiento * dt),
+            )
+            self.tiempo += dt
 
-        humedad += tasa_humedad * dt
-        temperatura += tasa_temperatura * dt
-        crecimiento += tasa_crecimiento * dt
+        return valores
 
-        # Mantener las variables dentro de sus límites físicos.
-        humedad = min(100.0, max(0.0, humedad))
-        crecimiento = min(
-            p.crecimiento_limite,
-            max(0.0, crecimiento),
-        )
 
-        tiempo += dt
+def simular(p: Parametros) -> dict:
+    """Ejecuta todos los pasos y devuelve los resultados completos."""
+    simulador = Simulador(p)
 
-    return datos
+    while not simulador.terminado:
+        simulador.paso()
+
+    return simulador.datos
