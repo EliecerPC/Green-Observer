@@ -42,6 +42,11 @@ def simular(p: Parametros) -> dict:
         "ventilacion": [],
         "luz_artificial": [],
         "eventos": [],
+        "aporte_riego": [],
+        "tasa_humedad": [],
+        "tasa_temperatura": [],
+        "tasa_crecimiento": [],
+        "paso_aplicado": [],
     }
 
     while tiempo <= p.duracion + 1e-9:
@@ -97,6 +102,12 @@ def simular(p: Parametros) -> dict:
             p,
         )
 
+        # Guardar los valores intermedios de este instante.
+        datos["aporte_riego"].append(aporte_riego)
+        datos["tasa_humedad"].append(tasa_humedad)
+        datos["tasa_temperatura"].append(tasa_temperatura)
+        datos["tasa_crecimiento"].append(tasa_crecimiento)
+
         # 4. Guardar el estado actual para las gráficas y los informes.
         datos["tiempo"].append(tiempo)
         datos["hora"].append(hora)
@@ -113,12 +124,18 @@ def simular(p: Parametros) -> dict:
         datos["ventilacion"].append(controlador.ventilacion)
         datos["luz_artificial"].append(controlador.luz)
 
-        # Si alcanzamos el final, no hay otro paso que calcular.
+        # Determinar cuánto tiempo abarca el siguiente paso.
+        # En el último instante no se aplica un nuevo paso.
         if tiempo >= p.duracion - 1e-9:
-            break
+            dt = 0.0
+        else:
+            dt = min(p.paso_tiempo, p.duracion - tiempo)
 
-        # 5. Método de Euler: siguiente valor = valor actual + tasa × dt.
-        dt = min(p.paso_tiempo, p.duracion - tiempo)
+        datos["paso_aplicado"].append(dt)
+
+        # Si llegamos al final, no hay otro estado que calcular.
+        if dt == 0.0:
+            break
 
         humedad += tasa_humedad * dt
         temperatura += tasa_temperatura * dt
