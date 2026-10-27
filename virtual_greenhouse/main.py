@@ -29,8 +29,10 @@ def mezclar_colores(color1, color2, proporcion):
 def abrir_invernadero():
     ventana = tk.Toplevel()
     ventana.title("Green Observer - Invernadero Virtual")
-    ventana.geometry("1000x650")
-    ventana.minsize(800, 500)
+
+    # Abrir maximizada y bloquear cambios de tamaño.
+    ventana.state("zoomed")
+    ventana.resizable(False, False)
 
     # Obtener el escenario y ejecutar el modelo matemático.
     escenarios = obtener_escenarios()
@@ -66,18 +68,15 @@ def abrir_invernadero():
         font=("Arial", 20, "bold")
     ).pack(pady=10)
 
-    # Escena visual.
+    # Escena visual de tamaño fijo.
     escena = tk.Canvas(
         ventana,
+        width=1000,
+        height=600,
         bg="#DCEFD5",
         highlightthickness=0
     )
-    escena.pack(
-        fill="both",
-        expand=True,
-        padx=15,
-        pady=10
-    )
+    escena.pack(padx=15, pady=5)
 
     # Cielo y astros.
     cielo = escena.create_rectangle(
@@ -100,14 +99,14 @@ def abrir_invernadero():
     escena.itemconfigure(luna, state="hidden")
 
     # Suelo.
-    escena.create_rectangle(
+    suelo = escena.create_rectangle(
         80, 420, 920, 520,
         fill="#795548",
         outline=""
     )
 
     # Estructura del invernadero.
-    escena.create_polygon(
+    techo = escena.create_polygon(
         80, 200,
         500, 60,
         920, 200,
@@ -116,19 +115,19 @@ def abrir_invernadero():
         width=5
     )
 
-    escena.create_line(
+    pared_izquierda = escena.create_line(
         80, 200, 80, 420,
         fill="#557C55",
         width=5
     )
 
-    escena.create_line(
+    pared_derecha = escena.create_line(
         920, 200, 920, 420,
         fill="#557C55",
         width=5
     )
 
-    escena.create_line(
+    columna_central = escena.create_line(
         500, 60, 500, 420,
         fill="#557C55",
         width=3
@@ -166,6 +165,7 @@ def abrir_invernadero():
     indice_actual = 0
     tarea_actualizacion = None
     pausado = False
+    velocidad_var = tk.StringVar(value="1x")
 
     def actualizar_datos():
         nonlocal indice_actual, tarea_actualizacion
@@ -196,14 +196,13 @@ def abrir_invernadero():
             )
         )
 
-        # Obtener los valores calculados por el modelo.
+        # Obtener valores calculados por el modelo.
         crecimiento = resultados["crecimiento"][indice_actual]
         hora = resultados["hora"][indice_actual]
         luminosidad = resultados["luminosidad_natural"][indice_actual]
 
         # Actualizar el cielo, el sol y la luna.
         if 6 <= hora < 18:
-            # Durante el día se muestra el sol.
             escena.itemconfigure(sol, state="normal")
             escena.itemconfigure(luna, state="hidden")
 
@@ -218,7 +217,7 @@ def abrir_invernadero():
                 posicion_x + 30, posicion_y + 30
             )
 
-            # Mezclar colores según la luminosidad natural.
+            # Color del cielo según la luminosidad natural.
             if luminosidad >= 70:
                 color_cielo = "#87CEEB"
 
@@ -243,13 +242,13 @@ def abrir_invernadero():
             escena.itemconfigure(cielo, fill=color_cielo)
 
         else:
-            # Durante la noche se muestra la luna.
             escena.itemconfigure(sol, state="hidden")
             escena.itemconfigure(luna, state="normal")
 
             hora_nocturna = (
                 hora - 18 if hora >= 18 else hora + 6
             )
+
             progreso = hora_nocturna / 12
 
             posicion_x = 100 + progreso * 800
@@ -294,8 +293,15 @@ def abrir_invernadero():
         indice_actual += 1
 
         if indice_actual < len(resultados["tiempo"]):
+            velocidad = float(
+                velocidad_var.get().replace("x", "")
+            )
+
+            intervalo = int(1000 / velocidad)
+
             tarea_actualizacion = ventana.after(
-                1000, actualizar_datos
+                intervalo,
+                actualizar_datos
             )
         else:
             tarea_actualizacion = None
@@ -316,8 +322,15 @@ def abrir_invernadero():
             pausado = False
 
             if indice_actual < len(resultados["tiempo"]):
+                velocidad = float(
+                    velocidad_var.get().replace("x", "")
+                )
+
+                intervalo = int(1000 / velocidad)
+
                 tarea_actualizacion = ventana.after(
-                    1000, actualizar_datos
+                    intervalo,
+                    actualizar_datos
                 )
 
     def reiniciar_simulacion():
@@ -335,6 +348,20 @@ def abrir_invernadero():
     # Panel de controles.
     panel_controles = ttk.Frame(ventana)
     panel_controles.pack(pady=5)
+
+    ttk.Label(
+        panel_controles,
+        text="Velocidad:"
+    ).pack(side="left", padx=5)
+
+    selector_velocidad = ttk.Combobox(
+        panel_controles,
+        textvariable=velocidad_var,
+        values=("1x", "2x", "5x", "10x"),
+        state="readonly",
+        width=5
+    )
+    selector_velocidad.pack(side="left", padx=5)
 
     ttk.Button(
         panel_controles,
@@ -354,7 +381,7 @@ def abrir_invernadero():
         command=reiniciar_simulacion
     ).pack(side="left", padx=5)
 
-    # Texto de apoyo en la escena.
+    # Texto de apoyo.
     escena.create_text(
         500, 565,
         text="Simulación visual basada en el modelo matemático",
