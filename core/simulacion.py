@@ -15,12 +15,7 @@ from core.control import Controlador
 def simular(p: Parametros) -> dict:
     """Ejecuta la simulación y devuelve los datos de cada instante."""
 
-    def simular(p: Parametros) -> dict:
-        """Ejecuta la simulación y devuelve los datos de cada instante."""
-
-        p.validar()
-        controlador = Controlador(p)
-
+    p.validar()
     controlador = Controlador(p)
 
     tiempo = 0.0

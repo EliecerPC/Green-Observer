@@ -14,17 +14,83 @@ from dataclasses import replace
 
 def main():
     ventana = tk.Tk()
-    ventana.title("Green Observer - Control Center")
+    ventana.title("Green Observer")
     ventana.geometry("1100x700")
     ventana.minsize(800, 550)
 
+    # --------------------------------------------------
+    # PANTALLA DE BIENVENIDA
+    # --------------------------------------------------
+
+    inicio = ttk.Frame(ventana, padding=30)
+    inicio.pack(fill="both", expand=True)
+
+    ttk.Label(
+        inicio,
+        text="GREEN OBSERVER",
+        font=("Arial", 26, "bold")
+    ).pack(pady=(80, 10))
+
+    ttk.Label(
+        inicio,
+        text="Simulador matemático de un invernadero virtual",
+        font=("Arial", 13)
+    ).pack(pady=(0, 35))
+
+    ttk.Label(
+        inicio,
+        text=(
+            "Explora las condiciones ambientales, observa los resultados "
+            "y analiza el comportamiento del modelo."
+        ),
+        wraplength=600,
+        justify="center"
+    ).pack(pady=(0, 30))
+
+    # --------------------------------------------------
+    # CONTENEDOR DEL CONTROL CENTER
+    # --------------------------------------------------
+
+    # Permanece oculto hasta que se abra el Control Center.
+    contenido = ttk.Frame(ventana)
+
+    def abrir_control_center():
+        inicio.pack_forget()
+        contenido.pack(fill="both", expand=True)
+
+    def abrir_invernadero_virtual():
+        messagebox.showinfo(
+            "Invernadero virtual",
+            "El invernadero virtual está en desarrollo."
+        )
+
+    ttk.Button(
+        inicio,
+        text="Abrir Control Center",
+        command=abrir_control_center
+    ).pack(pady=10, ipadx=25, ipady=10)
+
+    ttk.Button(
+        inicio,
+        text="Abrir invernadero virtual",
+        command=abrir_invernadero_virtual
+    ).pack(pady=10, ipadx=25, ipady=10)
+
+    # --------------------------------------------------
+    # CONFIGURACIÓN DE ESCENARIOS
+    # --------------------------------------------------
+
     escenarios = obtener_escenarios()
 
-    # Barra superior: selección y ejecución
-    barra = ttk.Frame(ventana, padding=8)
+    # Barra superior: selección y ejecución.
+    # Ahora pertenece a contenido, no directamente a ventana.
+    barra = ttk.Frame(contenido, padding=8)
     barra.pack(fill="x")
 
-    ttk.Label(barra, text="Escenario:").pack(side="left")
+    ttk.Label(
+        barra,
+        text="Escenario:"
+    ).pack(side="left")
 
     selector = ttk.Combobox(
         barra,
@@ -41,16 +107,15 @@ def main():
     )
     boton_ejecutar.pack(side="left", padx=6)
 
-
-    # Estado general
+    # Estado general.
     estado = ttk.Label(
-        ventana,
+        contenido,
         text="Selecciona un escenario y ejecuta la simulación."
     )
     estado.pack(fill="x", padx=10, pady=4)
 
-    # Pestañas principales
-    pestañas = ttk.Notebook(ventana)
+    # Pestañas principales.
+    pestañas = ttk.Notebook(contenido)
     pestañas.pack(fill="both", expand=True, padx=8, pady=8)
 
     panel = ttk.Frame(pestañas, padding=15)
