@@ -6,10 +6,12 @@ from tkinter import filedialog, messagebox
 
 from core.escenarios import obtener_escenarios
 from core.simulacion import simular
+from core.sesion_simulacion import SesionSimulacion
 
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from dataclasses import replace
+from virtual_greenhouse.main import abrir_invernadero
 
 
 def main():
@@ -59,10 +61,14 @@ def main():
         contenido.pack(fill="both", expand=True)
 
     def abrir_invernadero_virtual():
-        messagebox.showinfo(
-            "Invernadero virtual",
-            "El invernadero virtual está en desarrollo."
-        )
+        if sesion_actual is None:
+            messagebox.showwarning(
+                "Simulación no iniciada",
+                "Primero inicia una simulación desde el Control Center."
+            )
+            return
+
+        abrir_invernadero(sesion_actual)
 
     ttk.Button(
         inicio,
@@ -106,6 +112,13 @@ def main():
         text="Ejecutar simulación"
     )
     boton_ejecutar.pack(side="left", padx=6)
+
+    boton_invernadero = ttk.Button(
+        barra,
+        text="Abrir invernadero virtual",
+        command=abrir_invernadero_virtual
+    )
+    boton_invernadero.pack(side="left", padx=6)
 
     # Estado general.
     estado = ttk.Label(
@@ -727,6 +740,201 @@ def main():
         "resultados": None,
         "parametros": None
     }
+    sesion_actual = None
+
+    def actualizar_control_center(resultados, simulador, evento):
+        """Actualizar el Control Center con los datos disponibles."""
+
+        nonlocal sesion_actual
+
+        p = simulador.p
+
+        # Guardar los datos parciales de la sesión compartida.
+        datos_simulacion_actual["resultados"] = resultados
+        datos_simulacion_actual["parametros"] = p
+
+        # Si se reinicia, borrar los registros visuales anteriores.
+        if evento == "reinicio":
+            for fila in tabla.get_children():
+                tabla.delete(fila)
+
+            historial.config(state="normal")
+            historial.delete("1.0", "end")
+            historial.config(state="disabled")
+
+        cantidad = len(resultados["tiempo"])
+
+        if cantidad == 0:
+            return
+
+        i = cantidad - 1
+
+        # Actualizar los indicadores con el instante más reciente.
+        indicador_temperatura.config(
+            text=f"Temperatura\n{resultados['temperatura'][i]:.2f} °C"
+        )
+        indicador_humedad.config(
+            text=f"Humedad del suelo\n{resultados['humedad'][i]:.2f} %"
+        )
+        indicador_crecimiento.config(
+            text=f"Crecimiento\n{resultados['crecimiento'][i]:.4f}"
+        )
+
+        estado_riego.config(
+            text=f"Riego: {'Activo' if resultados['riego'][i] else 'Inactivo'}"
+        )
+        estado_ventilacion.config(
+            text=(
+                "Ventilación: "
+                f"{'Activa' if resultados['ventilacion'][i] else 'Inactiva'}"
+            )
+        )
+        estado_luz.config(
+            text=(
+                "Iluminación artificial: "
+                f"{'Activa' if resultados['luz_artificial'][i] else 'Inactiva'}"
+            )
+        )
+
+        # Insertar solamente las filas que todavía no aparecen en la tabla.
+        filas_actuales = len(tabla.get_children())
+
+        if evento == "reinicio":
+            filas_actuales = 0
+
+        for j in range(filas_actuales, cantidad):
+            tabla.insert(
+                "",
+                "end",
+                values=(
+                    f"{resultados['tiempo'][j]:.1f}",
+                    f"{resultados['temperatura'][j]:.2f}",
+                    f"{resultados['humedad'][j]:.2f}",
+                    f"{resultados['luminosidad_natural'][j]:.2f}",
+                    f"{resultados['crecimiento'][j]:.4f}",
+                    f"{resultados['evaporacion'][j]:.4f}",
+                    "Activo" if resultados["riego"][j] else "Inactivo",
+                    "Activa" if resultados["ventilacion"][j] else "Inactiva",
+                    "Activa" if resultados["luz_artificial"][j] else "Inactiva",
+                ),
+            )
+
+        # Reconstruir las gráficas con todos los datos disponibles.
+        eje_temperatura.clear()
+        eje_temperatura.plot(
+            resultados["tiempo"],
+            resultados["temperatura"],
+            label="Temperatura interior",
+        )
+        eje_temperatura.plot(
+            resultados["tiempo"],
+            resultados["temperatura_ambiental"],
+            label="Temperatura ambiental",
+            linestyle="--",
+        )
+        eje_temperatura.set_title("Temperatura")
+        eje_temperatura.set_xlabel("Tiempo (minutos)")
+        eje_temperatura.set_ylabel("Temperatura (°C)")
+        eje_temperatura.legend(fontsize=8)
+        eje_temperatura.grid(True, alpha=0.3)
+
+        eje_humedad.clear()
+        eje_humedad.plot(
+            resultados["tiempo"],
+            resultados["humedad"],
+            label="Humedad del suelo",
+        )
+        eje_humedad.set_title("Humedad del suelo")
+        eje_humedad.set_xlabel("Tiempo (minutos)")
+        eje_humedad.set_ylabel("Humedad (%)")
+        eje_humedad.set_ylim(0, 100)
+        eje_humedad.legend(fontsize=8)
+        eje_humedad.grid(True, alpha=0.3)
+
+        eje_luz.clear()
+        eje_luz.plot(
+            resultados["tiempo"],
+            resultados["luminosidad_natural"],
+            label="Luz natural",
+        )
+        eje_luz.plot(
+            resultados["tiempo"],
+            resultados["luminosidad_total"],
+            label="Luz total",
+            linestyle="--",
+        )
+        eje_luz.set_title("Luminosidad")
+        eje_luz.set_xlabel("Tiempo (minutos)")
+        eje_luz.set_ylabel("Luminosidad")
+        eje_luz.legend(fontsize=8)
+        eje_luz.grid(True, alpha=0.3)
+
+        eje_crecimiento.clear()
+        eje_crecimiento.plot(
+            resultados["tiempo"],
+            resultados["crecimiento"],
+            label="Crecimiento de la planta",
+        )
+        eje_crecimiento.set_title("Crecimiento de la planta")
+        eje_crecimiento.set_xlabel("Tiempo (minutos)")
+        eje_crecimiento.set_ylabel("Crecimiento")
+        eje_crecimiento.legend(fontsize=8)
+        eje_crecimiento.grid(True, alpha=0.3)
+
+        figura.tight_layout()
+        lienzo.draw_idle()
+
+        # Permitir consultar cualquier instante registrado hasta ahora.
+        selector_paso.configure(from_=0, to=cantidad - 1)
+
+        if evento == "reinicio":
+            selector_paso.set(0)
+
+        mostrar_calculos(
+            resultados,
+            p,
+            int(float(selector_paso.get())),
+        )
+
+        # Mostrar el resumen de los eventos acumulados.
+        eventos = resultados["eventos"]
+
+        resumen_controles.config(
+            text=(
+                f"Eventos registrados: {len(eventos)}\n"
+                f"Eventos relacionados con riego: "
+                f"{sum(1 for _, tipo, _ in eventos if 'riego' in tipo.lower())}\n"
+                f"Eventos relacionados con ventilación: "
+                f"{sum(1 for _, tipo, _ in eventos if 'ventil' in tipo.lower())}\n"
+                f"Eventos relacionados con iluminación: "
+                f"{sum(1 for _, tipo, _ in eventos if 'luz' in tipo.lower() or 'ilumin' in tipo.lower())}"
+            )
+        )
+
+        historial.config(state="normal")
+        historial.delete("1.0", "end")
+
+        for evento_registrado in eventos:
+            historial.insert(
+                "end",
+                formatear_evento(evento_registrado, p) + "\n",
+            )
+
+        if not eventos:
+            historial.insert(
+                "end",
+                "La simulación no ha registrado eventos de control.\n",
+            )
+
+        historial.config(state="disabled")
+
+        estado.config(
+            text=(
+                    f"Simulación en el minuto {resultados['tiempo'][-1]:.2f} "
+                    f"de {p.duracion:.2f}."
+                    + (" Finalizada." if simulador.terminado else "")
+            )
+        )
 
     def cambiar_paso(valor):
         resultados = datos_simulacion_actual["resultados"]
@@ -737,213 +945,48 @@ def main():
 
     selector_paso.configure(command=cambiar_paso)
 
-    def ejecutar_simulacion():
 
-        nombre = selector.get()
+    def ejecutar_simulacion():
+        nonlocal sesion_actual
 
         try:
             parametros_escenario = obtener_parametros_configurados()
-            resultados = simular(parametros_escenario)
+
+            # Detener la sesión anterior, si existe.
+            if sesion_actual is not None:
+                sesion_actual.pausar()
+
+            # Crear una nueva sesión con los parámetros seleccionados.
+            sesion_actual = SesionSimulacion(
+                ventana,
+                parametros_escenario
+            )
+
+            # Registrar el estado inicial y preparar las vistas.
+            datos_simulacion_actual["resultados"] = (
+                sesion_actual.resultados
+            )
+            datos_simulacion_actual["parametros"] = (
+                parametros_escenario
+            )
+
+            sesion_actual.suscribir(actualizar_control_center)
+
+            # Comenzar a avanzar paso a paso.
+            sesion_actual.iniciar()
+
         except (ValueError, TypeError) as error:
             mensaje_parametros.config(
-                text=f"No se pudo ejecutar: {error}"
+                text=f"Error en los parámetros: {error}"
             )
-            estado.config(text="Revisa los parámetros antes de ejecutar.")
-            return
-
-        # Configurar el selector de instantes.
-        selector_paso.configure(
-            from_=0,
-            to=len(resultados["tiempo"]) - 1
-        )
-
-        # Mostrar inicialmente el primer instante.
-        selector_paso.set(0)
-        mostrar_calculos(resultados, parametros_escenario, 0)
-
-        # Guardar los resultados para que el selector pueda consultarlos.
-        datos_simulacion_actual["resultados"] = resultados
-        datos_simulacion_actual["parametros"] = parametros_escenario
-
-        # Limpiar los datos de la ejecución anterior
-        for fila in tabla.get_children():
-            tabla.delete(fila)
-
-        # Insertar los nuevos resultados
-        for i, tiempo in enumerate(resultados["tiempo"]):
-            tabla.insert(
-                "",
-                "end",
-                values=(
-                    f"{tiempo:.1f}",
-                    f"{resultados['temperatura'][i]:.2f}",
-                    f"{resultados['humedad'][i]:.2f}",
-                    f"{resultados['luminosidad_natural'][i]:.2f}",
-                    f"{resultados['crecimiento'][i]:.4f}",
-                    f"{resultados['evaporacion'][i]:.4f}",
-                    "Activo" if resultados["riego"][i] else "Inactivo",
-                    "Activa" if resultados["ventilacion"][i] else "Inactiva",
-                    "Activa" if resultados["luz_artificial"][i] else "Inactiva"
-                )
+            estado.config(
+                text="No se pudo iniciar la simulación. Revisa los parámetros."
+            )
+            messagebox.showerror(
+                "Error de simulación",
+                str(error)
             )
 
-        # Actualizar indicadores del panel
-        indicador_temperatura.config(
-            text=(
-                "Temperatura\n"
-                f"{resultados['temperatura'][-1]:.2f} °C"
-            )
-        )
-
-        indicador_humedad.config(
-            text=(
-                "Humedad del suelo\n"
-                f"{resultados['humedad'][-1]:.2f} %"
-            )
-        )
-
-        indicador_crecimiento.config(
-            text=(
-                "Crecimiento\n"
-                f"{resultados['crecimiento'][-1]:.4f}"
-            )
-        )
-
-        estado_riego.config(
-            text=(
-                "Riego: "
-                f"{'Activo' if resultados['riego'][-1] else 'Inactivo'}"
-            )
-        )
-
-        estado_ventilacion.config(
-            text=(
-                "Ventilación: "
-                f"{'Activa' if resultados['ventilacion'][-1] else 'Inactiva'}"
-            )
-        )
-
-        estado_luz.config(
-            text=(
-                "Iluminación artificial: "
-                f"{'Activa' if resultados['luz_artificial'][-1] else 'Inactiva'}"
-            )
-        )
-
-        # Actualizar gráfica de temperatura
-        eje_temperatura.clear()
-        eje_temperatura.plot(
-            resultados["tiempo"],
-            resultados["temperatura"],
-            label="Temperatura interior"
-        )
-        eje_temperatura.plot(
-            resultados["tiempo"],
-            resultados["temperatura_ambiental"],
-            label="Temperatura ambiental",
-            linestyle="--"
-        )
-        eje_temperatura.set_title("Temperatura")
-        eje_temperatura.set_xlabel("Tiempo (minutos)")
-        eje_temperatura.set_ylabel("Temperatura (°C)")
-        eje_temperatura.legend(fontsize=8)
-        eje_temperatura.grid(True, alpha=0.3)
-
-        # Actualizar gráfica de humedad
-        eje_humedad.clear()
-        eje_humedad.plot(
-            resultados["tiempo"],
-            resultados["humedad"],
-            label="Humedad del suelo"
-        )
-        eje_humedad.set_title("Humedad del suelo")
-        eje_humedad.set_xlabel("Tiempo (minutos)")
-        eje_humedad.set_ylabel("Humedad (%)")
-        eje_humedad.set_ylim(0, 100)
-        eje_humedad.legend(fontsize=8)
-        eje_humedad.grid(True, alpha=0.3)
-
-        # Actualizar gráfica de luminosidad
-        eje_luz.clear()
-        eje_luz.plot(
-            resultados["tiempo"],
-            resultados["luminosidad_natural"],
-            label="Luz natural"
-        )
-        eje_luz.plot(
-            resultados["tiempo"],
-            resultados["luminosidad_total"],
-            label="Luz total",
-            linestyle="--"
-        )
-        eje_luz.set_title("Luminosidad")
-        eje_luz.set_xlabel("Tiempo (minutos)")
-        eje_luz.set_ylabel("Luminosidad")
-        eje_luz.legend(fontsize=8)
-        eje_luz.grid(True, alpha=0.3)
-
-        # Actualizar gráfica de crecimiento
-        eje_crecimiento.clear()
-        eje_crecimiento.plot(
-            resultados["tiempo"],
-            resultados["crecimiento"],
-            label="Crecimiento de la planta"
-        )
-        eje_crecimiento.set_title("Crecimiento de la planta")
-        eje_crecimiento.set_xlabel("Tiempo (minutos)")
-        eje_crecimiento.set_ylabel("Crecimiento")
-        eje_crecimiento.legend(fontsize=8)
-        eje_crecimiento.grid(True, alpha=0.3)
-
-        # Ajustar y redibujar las cuatro gráficas
-        figura.tight_layout()
-        lienzo.draw()
-
-        # Contar las activaciones registradas durante la simulación.
-        eventos = resultados["eventos"]
-
-        activaciones_riego = sum(
-            1 for _, tipo, _ in eventos
-            if "riego" in tipo.lower()
-        )
-
-        activaciones_ventilacion = sum(
-            1 for _, tipo, _ in eventos
-            if "ventil" in tipo.lower()
-        )
-
-        activaciones_luz = sum(
-            1 for _, tipo, _ in eventos
-            if "luz" in tipo.lower() or "ilumin" in tipo.lower()
-        )
-
-        resumen_controles.config(
-            text=(
-                f"Eventos registrados: {len(eventos)}\n"
-                f"Eventos relacionados con riego: {activaciones_riego}\n"
-                f"Eventos relacionados con ventilación: {activaciones_ventilacion}\n"
-                f"Eventos relacionados con iluminación: {activaciones_luz}"
-            )
-        )
-
-
-        # Actualizar historial detallado de eventos
-        historial.config(state="normal")
-        historial.delete("1.0", "end")
-
-        if resultados["eventos"]:
-            for evento in resultados["eventos"]:
-                historial.insert(
-                    "end",
-                    formatear_evento(evento, parametros_escenario) + "\n"
-                )
-        else:
-            historial.insert(
-                "end",
-                "La simulación no registró eventos de control.\n"
-            )
-
-        historial.config(state="disabled")
 
 
     def exportar_csv():

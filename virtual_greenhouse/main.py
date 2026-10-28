@@ -3,8 +3,8 @@ import tkinter as tk
 from tkinter import ttk
 import math
 
+from core.sesion_simulacion import SesionSimulacion
 from core.escenarios import obtener_escenarios
-from core.simulacion import Simulador
 
 def mezclar_colores(color1, color2, proporcion):
     """Mezcla dos colores hexadecimales."""
@@ -25,7 +25,7 @@ def mezclar_colores(color1, color2, proporcion):
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
-def abrir_invernadero():
+def abrir_invernadero(sesion):
     ventana = tk.Toplevel()
     ventana.title("Green Observer - Invernadero Virtual")
 
@@ -33,15 +33,9 @@ def abrir_invernadero():
     ventana.state("zoomed")
     ventana.resizable(False, False)
 
-    # Obtener el escenario y ejecutar el modelo matemático.
-    escenarios = obtener_escenarios()
-    parametros = escenarios["Día normal"]
-
-    simulador = Simulador(parametros)
-
-    # Calcular y guardar el estado inicial (t = 0).
-    simulador.paso()
-    resultados = simulador.datos
+    # Obtener los parámetros y resultados de la sesión compartida.
+    parametros = sesion.simulador.p
+    resultados = sesion.resultados
 
     # Panel de indicadores.
     panel_datos = ttk.Frame(ventana)
@@ -165,22 +159,17 @@ def abrir_invernadero():
             (x, tallo, hoja_izquierda, hoja_derecha)
         )
 
-    # Variables de control de la simulación.
+    # Variables de control de la interfaz.
     indice_actual = 0
-    tarea_actualizacion = None
-    pausado = False
     velocidad_var = tk.StringVar(value="1x")
 
-    def actualizar_datos():
-        nonlocal indice_actual, tarea_actualizacion
+    def actualizar_datos(resultados, simulador, evento):
+        nonlocal indice_actual
 
-        if indice_actual >= len(resultados["tiempo"]):
-            if simulador.terminado:
-                tarea_actualizacion = None
-                return
+        if not resultados["tiempo"]:
+            return
 
-            # Calcular el siguiente instante cuando sea necesario.
-            simulador.paso()
+        indice_actual = len(resultados["tiempo"]) - 1
 
         # Actualizar los indicadores.
         etiqueta_temperatura.config(
@@ -297,64 +286,22 @@ def abrir_invernadero():
                 x + 30, punta_tallo - 5
             )
 
-        # Avanzar al siguiente instante simulado.
         indice_actual += 1
 
-        if not simulador.terminado:
-            velocidad = float(
-                velocidad_var.get().replace("x", "")
-            )
-
-            intervalo = int(1000 / velocidad)
-
-            tarea_actualizacion = ventana.after(
-                intervalo,
-                actualizar_datos
-            )
-        else:
-            tarea_actualizacion = None
-
     def pausar_simulacion():
-        nonlocal tarea_actualizacion, pausado
-
-        pausado = True
-
-        if tarea_actualizacion is not None:
-            ventana.after_cancel(tarea_actualizacion)
-            tarea_actualizacion = None
+        sesion.pausar()
 
     def iniciar_simulacion():
-        nonlocal tarea_actualizacion, pausado
+        velocidad = float(
+            velocidad_var.get().replace("x", "")
+        )
 
-        if tarea_actualizacion is None and not simulador.terminado:
-            pausado = False
+        intervalo = int(1000 / velocidad)
 
-            velocidad = float(
-                velocidad_var.get().replace("x", "")
-            )
-
-            intervalo = int(1000 / velocidad)
-
-            tarea_actualizacion = ventana.after(
-                intervalo,
-                actualizar_datos
-            )
+        sesion.iniciar(intervalo)
 
     def reiniciar_simulacion():
-        nonlocal indice_actual, tarea_actualizacion, pausado, resultados
-
-        if tarea_actualizacion is not None:
-            ventana.after_cancel(tarea_actualizacion)
-
-        simulador.reiniciar()
-        simulador.paso()
-        resultados = simulador.datos
-
-        indice_actual = 0
-        pausado = False
-        tarea_actualizacion = None
-
-        actualizar_datos()
+        sesion.reiniciar()
 
     # Panel de controles.
     panel_controles = ttk.Frame(ventana)
@@ -373,6 +320,20 @@ def abrir_invernadero():
         width=5
     )
     selector_velocidad.pack(side="left", padx=5)
+
+    def cambiar_velocidad(event=None):
+        velocidad = float(
+            velocidad_var.get().replace("x", "")
+        )
+
+        intervalo = int(1000 / velocidad)
+
+        sesion.cambiar_velocidad(intervalo)
+
+    selector_velocidad.bind(
+        "<<ComboboxSelected>>",
+        cambiar_velocidad
+    )
 
     ttk.Button(
         panel_controles,
@@ -399,12 +360,28 @@ def abrir_invernadero():
         font=("Arial", 11)
     )
 
-    # Mostrar el estado inicial.
-    actualizar_datos()
+    # Suscribir el invernadero a la sesión compartida.
+    sesion.suscribir(actualizar_datos)
+
+    def cerrar_invernadero():
+        sesion.desuscribir(actualizar_datos)
+        ventana.destroy()
+
+    ventana.protocol(
+        "WM_DELETE_WINDOW",
+        cerrar_invernadero
+    )
 
 
 if __name__ == "__main__":
     raiz = tk.Tk()
     raiz.withdraw()
-    abrir_invernadero()
+
+    escenarios = obtener_escenarios()
+    parametros = escenarios["Día normal"]
+
+    sesion = SesionSimulacion(raiz, parametros)
+
+    abrir_invernadero(sesion)
+
     raiz.mainloop()
