@@ -86,9 +86,9 @@ def main():
     # --------------------------------------------------
 
     escenarios = obtener_escenarios()
+    escenario_var = tk.StringVar(value="Día normal")
 
-    # Barra superior: selección y ejecución.
-    # Ahora pertenece a contenido, no directamente a ventana.
+    # Barra superior del Control Center.
     barra = ttk.Frame(contenido, padding=8)
     barra.pack(fill="x")
 
@@ -696,7 +696,7 @@ def main():
 
     def cargar_parametros():
         """Cargar los valores del escenario seleccionado."""
-        p = escenarios[selector.get()]
+        p = escenarios[escenario_var.get()]
 
         for clave, entrada in entradas_parametros.items():
             entrada.delete(0, "end")
@@ -706,7 +706,7 @@ def main():
         luz_artificial_configurada.set(p.luz_artificial_activa)
 
         mensaje_parametros.config(
-            text=f"Valores cargados: {selector.get()}"
+            text=f"Valores cargados: {escenario_var.get()}"
         )
 
     selector.bind(
@@ -718,7 +718,7 @@ def main():
 
     def obtener_parametros_configurados():
         """Crear una copia del escenario con los valores de la interfaz."""
-        p = escenarios[selector.get()]
+        p = escenarios[escenario_var.get()]
         cambios = {}
 
         for clave, entrada in entradas_parametros.items():
@@ -1018,7 +1018,12 @@ def main():
             # Si GreenHouse solicita un escenario, sincronizarlo
             # con el selector y los parámetros del Control Center.
             if nombre_escenario is not None:
-                selector.set(nombre_escenario)
+                if nombre_escenario not in escenarios:
+                    raise ValueError(
+                        f"Escenario desconocido: {nombre_escenario}"
+                    )
+
+                escenario_var.set(nombre_escenario)
                 cargar_parametros()
 
             parametros_escenario = obtener_parametros_configurados()
@@ -1323,7 +1328,13 @@ def main():
     )
     boton_informe.pack(side="left", padx=5)
 
-    boton_ejecutar.config(command=ejecutar_simulacion)
+    boton_invernadero = ttk.Button(
+        barra,
+        text="Abrir invernadero",
+        command=abrir_invernadero_virtual
+    )
+    boton_invernadero.pack(side="left", padx=5)
+
 
     ventana.mainloop()
 

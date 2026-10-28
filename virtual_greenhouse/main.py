@@ -178,6 +178,12 @@ def abrir_invernadero(
     ancho_anterior = [1000]
     alto_anterior = [600]
 
+    def escalar_x(x):
+        return x * escena.winfo_width() / 1000
+
+    def escalar_y(y):
+        return y * escena.winfo_height() / 600
+
     def adaptar_escena(evento):
         if evento.width <= 1 or evento.height <= 1:
             return
@@ -238,13 +244,18 @@ def abrir_invernadero(
 
             progreso = (hora - 6) / 12
 
-            posicion_x = 100 + progreso * 800
-            posicion_y = 350 - 250 * math.sin(math.pi * progreso)
+            posicion_x = escalar_x(100 + progreso * 800)
+            posicion_y = escalar_y(
+                350 - 250 * math.sin(math.pi * progreso)
+            )
+
+            radio_x = escalar_x(30)
+            radio_y = escalar_y(30)
 
             escena.coords(
                 sol,
-                posicion_x - 30, posicion_y - 30,
-                posicion_x + 30, posicion_y + 30
+                posicion_x - radio_x, posicion_y - radio_y,
+                posicion_x + radio_x, posicion_y + radio_y
             )
 
             # Color del cielo según la luminosidad natural.
@@ -281,13 +292,18 @@ def abrir_invernadero(
 
             progreso = hora_nocturna / 12
 
-            posicion_x = 100 + progreso * 800
-            posicion_y = 350 - 250 * math.sin(math.pi * progreso)
+            posicion_x = escalar_x(100 + progreso * 800)
+            posicion_y = escalar_y(
+                350 - 250 * math.sin(math.pi * progreso)
+            )
+
+            radio_x = escalar_x(27)
+            radio_y = escalar_y(27)
 
             escena.coords(
                 luna,
-                posicion_x - 27, posicion_y - 27,
-                posicion_x + 27, posicion_y + 27
+                posicion_x - radio_x, posicion_y - radio_y,
+                posicion_x + radio_x, posicion_y + radio_y
             )
 
             escena.itemconfigure(cielo, fill="#172554")
@@ -299,24 +315,26 @@ def abrir_invernadero(
         )
 
         for x, tallo, hoja_izquierda, hoja_derecha in plantas:
-            punta_tallo = 420 - altura
+            x_escala = escalar_x(x)
+            suelo_y = escalar_y(420)
+            punta_tallo = escalar_y(420 - altura)
 
             escena.coords(
                 tallo,
-                x, 420,
-                x, punta_tallo
+                x_escala, suelo_y,
+                x_escala, punta_tallo
             )
 
             escena.coords(
                 hoja_izquierda,
-                x - 30, punta_tallo - 15,
-                x, punta_tallo + 5
+                escalar_x(x - 30), escalar_y(420 - altura - 15),
+                x_escala, escalar_y(420 - altura + 5)
             )
 
             escena.coords(
                 hoja_derecha,
-                x, punta_tallo - 25,
-                x + 30, punta_tallo - 5
+                x_escala, escalar_y(420 - altura - 25),
+                escalar_x(x + 30), escalar_y(420 - altura - 5)
             )
 
         indice_actual += 1
