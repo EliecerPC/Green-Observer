@@ -193,48 +193,104 @@ def main():
     estado_luz.pack(anchor="w", pady=4)
 
     # --------------------------------------------------
-    # GRÁFICAS: cuatro gráficas en una cuadrícula
+    # GRÁFICAS: cuatro gráficas apiladas verticalmente
+    # con desplazamiento para evitar superposiciones
     # --------------------------------------------------
 
-    figura = Figure(figsize=(10, 12), dpi=100)
+    figura = Figure(figsize=(10, 14), dpi=100)
 
     ejes = figura.subplots(4, 1)
     eje_temperatura, eje_humedad, eje_luz, eje_crecimiento = ejes
 
-    # Gráfica 1: temperatura
     eje_temperatura.set_title("Temperatura")
     eje_temperatura.set_xlabel("Tiempo (minutos)")
     eje_temperatura.set_ylabel("Temperatura (°C)")
     eje_temperatura.grid(True, alpha=0.3)
 
-    # Gráfica 2: humedad
     eje_humedad.set_title("Humedad del suelo")
     eje_humedad.set_xlabel("Tiempo (minutos)")
     eje_humedad.set_ylabel("Humedad (%)")
     eje_humedad.grid(True, alpha=0.3)
 
-    # Gráfica 3: luminosidad
     eje_luz.set_title("Luminosidad")
     eje_luz.set_xlabel("Tiempo (minutos)")
     eje_luz.set_ylabel("Luminosidad")
     eje_luz.grid(True, alpha=0.3)
 
-    # Gráfica 4: crecimiento
     eje_crecimiento.set_title("Crecimiento de la planta")
     eje_crecimiento.set_xlabel("Tiempo (minutos)")
     eje_crecimiento.set_ylabel("Crecimiento")
     eje_crecimiento.grid(True, alpha=0.3)
 
-    figura.tight_layout()
-
-    lienzo = FigureCanvasTkAgg(
-        figura,
-        master=graficas
+    figura.subplots_adjust(
+        hspace=0.75,
+        top=0.97,
+        bottom=0.05,
+        left=0.12,
+        right=0.97
     )
-    lienzo.get_tk_widget().pack(
+
+    # Contenedor desplazable dentro de la pestaña.
+    contenedor_graficas = ttk.Frame(graficas)
+    contenedor_graficas.pack(fill="both", expand=True)
+
+    lienzo_desplazamiento = tk.Canvas(
+        contenedor_graficas,
+        highlightthickness=0
+    )
+
+    barra_graficas = ttk.Scrollbar(
+        contenedor_graficas,
+        orient="vertical",
+        command=lienzo_desplazamiento.yview
+    )
+
+    lienzo_desplazamiento.configure(
+        yscrollcommand=barra_graficas.set
+    )
+
+    barra_graficas.pack(side="right", fill="y")
+    lienzo_desplazamiento.pack(
+        side="left",
         fill="both",
         expand=True
     )
+
+    marco_graficas_interno = ttk.Frame(lienzo_desplazamiento)
+
+    ventana_graficas = lienzo_desplazamiento.create_window(
+        (0, 0),
+        window=marco_graficas_interno,
+        anchor="nw"
+    )
+
+    def actualizar_area_graficas(evento=None):
+        lienzo_desplazamiento.configure(
+            scrollregion=lienzo_desplazamiento.bbox("all")
+        )
+
+    def ajustar_ancho_graficas(evento):
+        lienzo_desplazamiento.itemconfigure(
+            ventana_graficas,
+            width=evento.width
+        )
+
+    marco_graficas_interno.bind(
+        "<Configure>",
+        actualizar_area_graficas
+    )
+
+    lienzo_desplazamiento.bind(
+        "<Configure>",
+        ajustar_ancho_graficas
+    )
+
+    lienzo = FigureCanvasTkAgg(
+        figura,
+        master=marco_graficas_interno
+    )
+
+    lienzo.get_tk_widget().pack(fill="both", expand=True)
 
     # --------------------------------------------------
     # OTRAS PESTAÑAS
@@ -262,6 +318,7 @@ def main():
         state="readonly"
     )
     selector_paso.pack(anchor="w", pady=(10, 0))
+    selector_paso.set("0")
 
     etiqueta_paso = ttk.Label(
         calculos,
@@ -880,8 +937,8 @@ def main():
         eje_crecimiento.legend(fontsize=8)
         eje_crecimiento.grid(True, alpha=0.3)
 
-        figura.tight_layout()
         lienzo.draw_idle()
+        actualizar_area_graficas()
 
         # Permitir consultar cualquier instante registrado hasta ahora.
         selector_paso.configure(from_=0, to=cantidad - 1)
@@ -889,10 +946,15 @@ def main():
         if evento == "reinicio":
             selector_paso.set(0)
 
+        valor_paso = selector_paso.get().strip()
+
+        if not valor_paso:
+            valor_paso = "0"
+
         mostrar_calculos(
             resultados,
             p,
-            int(float(selector_paso.get())),
+            int(valor_paso),
         )
 
         # Mostrar el resumen de los eventos acumulados.
@@ -936,16 +998,18 @@ def main():
         )
 
     def cambiar_paso(valor=None):
-        if valor is None:
-            valor = selector_paso.get()
-
         resultados = datos_simulacion_actual["resultados"]
         p = datos_simulacion_actual["parametros"]
 
-        if resultados is not None and p is not None:
-            mostrar_calculos(resultados, p, int(float(valor)))
+        if resultados is None or p is None:
+            return
 
-    selector_paso.configure(command=cambiar_paso)
+        valor = str(valor if valor is not None else selector_paso.get()).strip()
+
+        if not valor:
+            valor = "0"
+
+        mostrar_calculos(resultados, p, int(valor))
 
     def ejecutar_simulacion(nombre_escenario=None):
         nonlocal sesion_actual

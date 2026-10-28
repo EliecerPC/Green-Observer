@@ -331,12 +331,9 @@ def abrir_invernadero(
         sesion = nueva_sesion
         parametros = sesion.simulador.p
 
-        # Mostrar inmediatamente el estado inicial.
-        actualizar_datos(
-            sesion.resultados,
-            sesion.simulador,
-            "inicio"
-        )
+        # Suscribir la ventana a todos los cambios de la simulación.
+        # La suscripción también actualiza inmediatamente el estado actual.
+        sesion.suscribir(actualizar_datos)
 
 
     def pausar_simulacion():
