@@ -59,16 +59,15 @@ def main():
     def abrir_control_center():
         inicio.pack_forget()
         contenido.pack(fill="both", expand=True)
+        ventana.deiconify()
+        ventana.lift()
 
     def abrir_invernadero_virtual():
-        if sesion_actual is None:
-            messagebox.showwarning(
-                "Simulación no iniciada",
-                "Primero inicia una simulación desde el Control Center."
-            )
-            return
-
-        abrir_invernadero(sesion_actual)
+        abrir_invernadero(
+            sesion_actual,
+            al_ejecutar=ejecutar_simulacion,
+            abrir_control_center=abrir_control_center
+        )
 
     ttk.Button(
         inicio,
@@ -112,13 +111,6 @@ def main():
         text="Ejecutar simulación"
     )
     boton_ejecutar.pack(side="left", padx=6)
-
-    boton_invernadero = ttk.Button(
-        barra,
-        text="Abrir invernadero virtual",
-        command=abrir_invernadero_virtual
-    )
-    boton_invernadero.pack(side="left", padx=6)
 
     # Estado general.
     estado = ttk.Label(
@@ -204,12 +196,10 @@ def main():
     # GRÁFICAS: cuatro gráficas en una cuadrícula
     # --------------------------------------------------
 
-    figura = Figure(figsize=(10, 6), dpi=100)
+    figura = Figure(figsize=(10, 12), dpi=100)
 
-    ejes = figura.subplots(2, 2)
-    eje_temperatura, eje_humedad, eje_luz, eje_crecimiento = (
-        ejes.flatten()
-    )
+    ejes = figura.subplots(4, 1)
+    eje_temperatura, eje_humedad, eje_luz, eje_crecimiento = ejes
 
     # Gráfica 1: temperatura
     eje_temperatura.set_title("Temperatura")
@@ -263,13 +253,15 @@ def main():
     ).pack(anchor="w")
 
     # Selector del registro que queremos consultar
-    selector_paso = ttk.Scale(
+    selector_paso = ttk.Spinbox(
         calculos,
         from_=0,
         to=0,
-        orient="horizontal"
+        increment=1,
+        width=8,
+        state="readonly"
     )
-    selector_paso.pack(fill="x", pady=(10, 0))
+    selector_paso.pack(anchor="w", pady=(10, 0))
 
     etiqueta_paso = ttk.Label(
         calculos,
@@ -660,6 +652,13 @@ def main():
             text=f"Valores cargados: {selector.get()}"
         )
 
+    selector.bind(
+        "<<ComboboxSelected>>",
+        lambda evento: cargar_parametros()
+    )
+
+    cargar_parametros()
+
     def obtener_parametros_configurados():
         """Crear una copia del escenario con los valores de la interfaz."""
         p = escenarios[selector.get()]
@@ -668,10 +667,10 @@ def main():
         for clave, entrada in entradas_parametros.items():
             texto = entrada.get().strip()
 
+            # Si el campo está vacío, conservar el valor del escenario.
             if not texto:
-                raise ValueError(
-                    f"El campo '{clave}' no puede estar vacío."
-                )
+                cambios[clave] = getattr(p, clave)
+                continue
 
             try:
                 cambios[clave] = float(texto)
@@ -936,7 +935,10 @@ def main():
             )
         )
 
-    def cambiar_paso(valor):
+    def cambiar_paso(valor=None):
+        if valor is None:
+            valor = selector_paso.get()
+
         resultados = datos_simulacion_actual["resultados"]
         p = datos_simulacion_actual["parametros"]
 
@@ -945,16 +947,17 @@ def main():
 
     selector_paso.configure(command=cambiar_paso)
 
-
-    def ejecutar_simulacion():
+    def ejecutar_simulacion(nombre_escenario=None):
         nonlocal sesion_actual
 
         try:
-            parametros_escenario = obtener_parametros_configurados()
+            # Si GreenHouse solicita un escenario, sincronizarlo
+            # con el selector y los parámetros del Control Center.
+            if nombre_escenario is not None:
+                selector.set(nombre_escenario)
+                cargar_parametros()
 
-            # Detener la sesión anterior, si existe.
-            if sesion_actual is not None:
-                sesion_actual.pausar()
+            parametros_escenario = obtener_parametros_configurados()
 
             # Crear una nueva sesión con los parámetros seleccionados.
             sesion_actual = SesionSimulacion(
@@ -975,6 +978,8 @@ def main():
             # Comenzar a avanzar paso a paso.
             sesion_actual.iniciar()
 
+            return sesion_actual
+
         except (ValueError, TypeError) as error:
             mensaje_parametros.config(
                 text=f"Error en los parámetros: {error}"
@@ -986,6 +991,8 @@ def main():
                 "Error de simulación",
                 str(error)
             )
+
+        return None
 
 
 

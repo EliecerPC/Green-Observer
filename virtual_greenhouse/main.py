@@ -1,6 +1,6 @@
 
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 import math
 
 from core.sesion_simulacion import SesionSimulacion
@@ -25,17 +25,18 @@ def mezclar_colores(color1, color2, proporcion):
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
-def abrir_invernadero(sesion):
+def abrir_invernadero(
+    sesion=None,
+    al_ejecutar=None,
+    abrir_control_center=None
+):
     ventana = tk.Toplevel()
     ventana.title("Green Observer - Invernadero Virtual")
 
-    # Abrir maximizada y bloquear cambios de tamaño.
-    ventana.state("zoomed")
-    ventana.resizable(False, False)
 
     # Obtener los parámetros y resultados de la sesión compartida.
-    parametros = sesion.simulador.p
-    resultados = sesion.resultados
+    parametros = sesion.simulador.p if sesion is not None else None
+    resultados = sesion.resultados if sesion is not None else None
 
     # Panel de indicadores.
     panel_datos = ttk.Frame(ventana)
@@ -43,19 +44,28 @@ def abrir_invernadero(sesion):
 
     etiqueta_temperatura = ttk.Label(
         panel_datos,
-        text=f"Temperatura: {resultados['temperatura'][0]:.1f} °C"
+        text=(
+            f"Temperatura: {resultados['temperatura'][0]:.2f} °C"
+            if resultados is not None else "Temperatura: -- °C"
+        )
     )
     etiqueta_temperatura.pack(side="left", padx=15)
 
     etiqueta_humedad = ttk.Label(
         panel_datos,
-        text=f"Humedad: {resultados['humedad'][0]:.1f} %"
+        text=(
+            f"Humedad: {resultados['humedad'][0]:.2f} %"
+            if resultados is not None else "Humedad: -- %"
+        )
     )
     etiqueta_humedad.pack(side="left", padx=15)
 
     etiqueta_luminosidad = ttk.Label(
         panel_datos,
-        text=f"Luminosidad: {resultados['luminosidad_total'][0]:.1f}"
+        text=(
+            f"Luminosidad: {resultados['luminosidad_total'][0]:.2f}"
+            if resultados is not None else "Luminosidad: --"
+        )
     )
     etiqueta_luminosidad.pack(side="left", padx=15)
 
@@ -74,7 +84,13 @@ def abrir_invernadero(sesion):
         bg="#DCEFD5",
         highlightthickness=0
     )
-    escena.pack(padx=15, pady=5)
+
+    escena.pack(
+        padx=10,
+        pady=5,
+        fill="both",
+        expand=True
+    )
 
     # Cielo y astros.
     cielo = escena.create_rectangle(
@@ -159,6 +175,23 @@ def abrir_invernadero(sesion):
             (x, tallo, hoja_izquierda, hoja_derecha)
         )
 
+    ancho_anterior = [1000]
+    alto_anterior = [600]
+
+    def adaptar_escena(evento):
+        if evento.width <= 1 or evento.height <= 1:
+            return
+
+        escala_x = evento.width / ancho_anterior[0]
+        escala_y = evento.height / alto_anterior[0]
+
+        escena.scale("all", 0, 0, escala_x, escala_y)
+
+        ancho_anterior[0] = evento.width
+        alto_anterior[0] = evento.height
+
+    escena.bind("<Configure>", adaptar_escena)
+
     # Variables de control de la interfaz.
     indice_actual = 0
     velocidad_var = tk.StringVar(value="1x")
@@ -175,21 +208,21 @@ def abrir_invernadero(sesion):
         etiqueta_temperatura.config(
             text=(
                 f"Temperatura: "
-                f"{resultados['temperatura'][indice_actual]:.1f} °C"
+                f"{resultados['temperatura'][indice_actual]:.2f} °C"
             )
         )
 
         etiqueta_humedad.config(
             text=(
                 f"Humedad: "
-                f"{resultados['humedad'][indice_actual]:.1f} %"
+                f"{resultados['humedad'][indice_actual]:.2f} %"
             )
         )
 
         etiqueta_luminosidad.config(
             text=(
                 f"Luminosidad: "
-                f"{resultados['luminosidad_total'][indice_actual]:.1f}"
+                f"{resultados['luminosidad_total'][indice_actual]:.2f}"
             )
         )
 
@@ -288,6 +321,24 @@ def abrir_invernadero(sesion):
 
         indice_actual += 1
 
+
+    def conectar_sesion(nueva_sesion):
+        nonlocal sesion, parametros
+
+        if sesion is not None:
+            sesion.desuscribir(actualizar_datos)
+
+        sesion = nueva_sesion
+        parametros = sesion.simulador.p
+
+        # Mostrar inmediatamente el estado inicial.
+        actualizar_datos(
+            sesion.resultados,
+            sesion.simulador,
+            "inicio"
+        )
+
+
     def pausar_simulacion():
         sesion.pausar()
 
@@ -303,14 +354,62 @@ def abrir_invernadero(sesion):
     def reiniciar_simulacion():
         sesion.reiniciar()
 
+
     # Panel de controles.
     panel_controles = ttk.Frame(ventana)
     panel_controles.pack(pady=5)
 
+    # Selección del escenario.
+    escenarios = obtener_escenarios()
+
+    ttk.Label(
+        panel_controles,
+        text="Escenario:"
+    ).pack(side="left", padx=5)
+
+    selector_escenario = ttk.Combobox(
+        panel_controles,
+        values=list(escenarios.keys()),
+        state="readonly",
+        width=18
+    )
+    selector_escenario.pack(side="left", padx=5)
+    selector_escenario.set("Día normal")
+
+    def ejecutar_escenario():
+        if al_ejecutar is None:
+            messagebox.showwarning(
+                "Simulación no disponible",
+                "No se ha conectado el inicio de la simulación."
+            )
+            return
+
+        nueva_sesion = al_ejecutar(selector_escenario.get())
+
+        if nueva_sesion is not None:
+            conectar_sesion(nueva_sesion)
+
+    ttk.Button(
+        panel_controles,
+        text="Ejecutar simulación",
+        command=ejecutar_escenario
+    ).pack(side="left", padx=5)
+
+    # Acceso al Control Center.
+    ttk.Button(
+        panel_controles,
+        text="Control Center",
+        command=abrir_control_center
+        if abrir_control_center is not None else lambda: None
+    ).pack(side="left", padx=5)
+
+    # Velocidad de simulación.
     ttk.Label(
         panel_controles,
         text="Velocidad:"
     ).pack(side="left", padx=5)
+
+    velocidad_var = tk.StringVar(value="1x")
 
     selector_velocidad = ttk.Combobox(
         panel_controles,
@@ -322,18 +421,41 @@ def abrir_invernadero(sesion):
     selector_velocidad.pack(side="left", padx=5)
 
     def cambiar_velocidad(event=None):
+        if sesion is None:
+            return
+
         velocidad = float(
             velocidad_var.get().replace("x", "")
         )
-
-        intervalo = int(1000 / velocidad)
-
+        intervalo = max(1, int(1000 / velocidad))
         sesion.cambiar_velocidad(intervalo)
 
     selector_velocidad.bind(
         "<<ComboboxSelected>>",
         cambiar_velocidad
     )
+
+    def iniciar_simulacion():
+        if sesion is None:
+            messagebox.showinfo(
+                "Simulación no iniciada",
+                "Selecciona un escenario y pulsa Ejecutar simulación."
+            )
+            return
+
+        velocidad = float(
+            velocidad_var.get().replace("x", "")
+        )
+        intervalo = max(1, int(1000 / velocidad))
+        sesion.iniciar(intervalo)
+
+    def pausar_simulacion():
+        if sesion is not None:
+            sesion.pausar()
+
+    def reiniciar_simulacion():
+        if sesion is not None:
+            sesion.reiniciar()
 
     ttk.Button(
         panel_controles,
@@ -353,6 +475,7 @@ def abrir_invernadero(sesion):
         command=reiniciar_simulacion
     ).pack(side="left", padx=5)
 
+
     # Texto de apoyo.
     escena.create_text(
         500, 565,
@@ -360,11 +483,11 @@ def abrir_invernadero(sesion):
         font=("Arial", 11)
     )
 
-    # Suscribir el invernadero a la sesión compartida.
-    sesion.suscribir(actualizar_datos)
 
     def cerrar_invernadero():
-        sesion.desuscribir(actualizar_datos)
+        if sesion is not None:
+            sesion.desuscribir(actualizar_datos)
+
         ventana.destroy()
 
     ventana.protocol(
