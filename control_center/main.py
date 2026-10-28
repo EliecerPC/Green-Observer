@@ -92,30 +92,13 @@ def main():
     barra = ttk.Frame(contenido, padding=8)
     barra.pack(fill="x")
 
-    ttk.Label(
-        barra,
-        text="Escenario:"
-    ).pack(side="left")
 
-    selector = ttk.Combobox(
-        barra,
-        values=list(escenarios.keys()),
-        state="readonly",
-        width=28
-    )
-    selector.pack(side="left", padx=6)
-    selector.set("Día normal")
 
-    boton_ejecutar = ttk.Button(
-        barra,
-        text="Ejecutar simulación"
-    )
-    boton_ejecutar.pack(side="left", padx=6)
 
     # Estado general.
     estado = ttk.Label(
         contenido,
-        text="Selecciona un escenario y ejecuta la simulación."
+        text="Abre el invernadero virtual para iniciar una simulación."
     )
     estado.pack(fill="x", padx=10, pady=4)
 
@@ -683,7 +666,7 @@ def main():
 
     mensaje_parametros = ttk.Label(
         marco_parametros,
-        text="Selecciona un escenario para cargar sus valores."
+        text="Los parámetros se cargarán al elegir un escenario en el invernadero."
     )
     mensaje_parametros.grid(
         row=fila_opciones + 2,
@@ -709,10 +692,6 @@ def main():
             text=f"Valores cargados: {escenario_var.get()}"
         )
 
-    selector.bind(
-        "<<ComboboxSelected>>",
-        lambda evento: cargar_parametros()
-    )
 
     cargar_parametros()
 
@@ -772,19 +751,6 @@ def main():
         pady=10
     )
 
-    ttk.Button(
-        marco_parametros,
-        text="Cargar escenario seleccionado",
-        command=cargar_parametros
-    ).grid(
-        row=fila_opciones + 3,
-        column=1,
-        sticky="w",
-        padx=5,
-        pady=10
-    )
-
-    selector.bind("<<ComboboxSelected>>", lambda evento: cargar_parametros())
 
     cargar_parametros()
 
@@ -1015,8 +981,7 @@ def main():
         nonlocal sesion_actual
 
         try:
-            # Si GreenHouse solicita un escenario, sincronizarlo
-            # con el selector y los parámetros del Control Center.
+            # Actualizar los parámetros internos solicitados por GreenHouse.
             if nombre_escenario is not None:
                 if nombre_escenario not in escenarios:
                     raise ValueError(
