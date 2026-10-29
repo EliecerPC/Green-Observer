@@ -872,6 +872,96 @@ def main():
     }
     sesion_actual = None
 
+
+    # Estado visual persistente de los controles.
+    franjas_controles = {
+        "riego": {
+            "eje": eje_humedad,
+            "color": "deepskyblue",
+            "franja": None,
+            "activo": False,
+            "marcas": [],
+        },
+        "ventilacion": {
+            "eje": eje_temperatura,
+            "color": "orange",
+            "franja": None,
+            "activo": False,
+            "marcas": [],
+        },
+        "luz": {
+            "eje": eje_luz,
+            "color": "purple",
+            "franja": None,
+            "activo": False,
+            "marcas": [],
+        },
+    }
+
+    def actualizar_franja_control(nombre, tiempo, activo):
+        control_visual = franjas_controles[nombre]
+        eje = control_visual["eje"]
+
+        # Dibujar una marca únicamente cuando cambia el estado.
+        if activo != control_visual["activo"]:
+            marca = eje.axvline(
+                tiempo,
+                color=control_visual["color"],
+                linestyle=":",
+                linewidth=1.2,
+                alpha=0.9,
+                zorder=2,
+            )
+            control_visual["marcas"].append(marca)
+
+            # Si se activa, comenzar una nueva franja.
+            if activo:
+                franja = Rectangle(
+                    (tiempo, 0),
+                    0,
+                    1,
+                    transform=eje.get_xaxis_transform(),
+                    facecolor=control_visual["color"],
+                    alpha=0.30,
+                    linewidth=0,
+                    zorder=1,
+                )
+                eje.add_patch(franja)
+                control_visual["franja"] = franja
+
+            # Si sigue activo, extender la franja hasta el instante actual.
+            elif control_visual["franja"] is not None:
+                control_visual["franja"].set_width(
+                    max(
+                        0,
+                        tiempo - control_visual["franja"].get_x()
+                    )
+                )
+                control_visual["franja"] = None
+
+            control_visual["activo"] = activo
+
+        # Actualizar el ancho sin crear objetos gráficos nuevos.
+        if activo and control_visual["franja"] is not None:
+            franja = control_visual["franja"]
+            franja.set_width(max(0, tiempo - franja.get_x()))
+
+    def reiniciar_franjas():
+        for control_visual in franjas_controles.values():
+            franja = control_visual["franja"]
+
+            if franja is not None:
+                franja.remove()
+
+            control_visual["franja"] = None
+            control_visual["activo"] = False
+
+            for marca in control_visual["marcas"]:
+                marca.remove()
+
+            control_visual["marcas"].clear()
+
+
     def actualizar_control_center(resultados, simulador, evento):
         """Actualizar el Control Center con los datos disponibles."""
 
@@ -900,81 +990,6 @@ def main():
             p.luminosidad_minima
         ] * 2)
 
-        # Franjas que representan los periodos de actividad.
-        franjas_riego = []
-        franjas_ventilacion = []
-        franjas_luz = []
-
-        from matplotlib.patches import Rectangle
-
-        # Estado visual independiente para cada mecanismo.
-        franjas_controles = {
-            "riego": {
-                "eje": eje_humedad,
-                "color": "deepskyblue",
-                "franja": None,
-                "activo": False,
-            },
-            "ventilacion": {
-                "eje": eje_temperatura,
-                "color": "orange",
-                "franja": None,
-                "activo": False,
-            },
-            "luz": {
-                "eje": eje_luz,
-                "color": "purple",
-                "franja": None,
-                "activo": False,
-            },
-        }
-
-        def actualizar_franja_control(nombre, tiempo, activo):
-            control_visual = franjas_controles[nombre]
-            eje = control_visual["eje"]
-
-            # Crear una franja únicamente cuando comienza la actividad.
-            if activo and not control_visual["activo"]:
-                eje.axvline(
-                    tiempo,
-                    color=control_visual["color"],
-                    linestyle=":",
-                    linewidth=1.2,
-                    alpha=0.9,
-                    zorder=2,
-                )
-
-                franja = Rectangle(
-                    (tiempo, 0),
-                    0,
-                    1,
-                    transform=eje.get_xaxis_transform(),
-                    facecolor=control_visual["color"],
-                    alpha=0.30,
-                    linewidth=0,
-                    zorder=1,
-                )
-                eje.add_patch(franja)
-                control_visual["franja"] = franja
-
-            # Extender la franja existente mientras siga activo.
-            if activo:
-                franja = control_visual["franja"]
-                inicio = franja.get_x()
-                franja.set_width(max(0, tiempo - inicio))
-
-            # Recordar el estado para detectar futuras activaciones.
-            control_visual["activo"] = activo
-
-        def reiniciar_franjas():
-            for control_visual in franjas_controles.values():
-                franja = control_visual["franja"]
-
-                if franja is not None:
-                    franja.remove()
-
-                control_visual["franja"] = None
-                control_visual["activo"] = False
 
         # Guardar los datos parciales de la sesión compartida.
         datos_simulacion_actual["resultados"] = resultados
