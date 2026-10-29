@@ -12,6 +12,7 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from dataclasses import replace
 from virtual_greenhouse.main import abrir_invernadero
+from matplotlib.patches import Rectangle
 
 
 def main():
@@ -226,6 +227,48 @@ def main():
 
     (linea_crecimiento,) = eje_crecimiento.plot(
         [], [], label="Crecimiento de la planta"
+    )
+
+    # Umbrales de control: se actualizarán con los parámetros
+    # de cada simulación.
+    linea_temp_activar = eje_temperatura.axhline(
+        30,
+        color="red",
+        linestyle=":",
+        linewidth=1.5,
+        label="Activar ventilación"
+    )
+
+    linea_temp_desactivar = eje_temperatura.axhline(
+        27,
+        color="orange",
+        linestyle=":",
+        linewidth=1.5,
+        label="Desactivar ventilación"
+    )
+
+    linea_humedad_activar = eje_humedad.axhline(
+        40,
+        color="red",
+        linestyle=":",
+        linewidth=1.5,
+        label="Activar riego"
+    )
+
+    linea_humedad_desactivar = eje_humedad.axhline(
+        70,
+        color="orange",
+        linestyle=":",
+        linewidth=1.5,
+        label="Desactivar riego"
+    )
+
+    linea_luz_minima = eje_luz.axhline(
+        20,
+        color="purple",
+        linestyle=":",
+        linewidth=1.5,
+        label="Luminosidad mínima"
     )
 
     # Configurar las leyendas una sola vez.
@@ -836,6 +879,103 @@ def main():
 
         p = simulador.p
 
+        # Actualizar los umbrales según la configuración actual.
+        linea_temp_activar.set_ydata([
+            p.temperatura_ventilacion_activar
+        ] * 2)
+
+        linea_temp_desactivar.set_ydata([
+            p.temperatura_ventilacion_desactivar
+        ] * 2)
+
+        linea_humedad_activar.set_ydata([
+            p.humedad_riego_activar
+        ] * 2)
+
+        linea_humedad_desactivar.set_ydata([
+            p.humedad_riego_desactivar
+        ] * 2)
+
+        linea_luz_minima.set_ydata([
+            p.luminosidad_minima
+        ] * 2)
+
+        # Franjas que representan los periodos de actividad.
+        franjas_riego = []
+        franjas_ventilacion = []
+        franjas_luz = []
+
+        from matplotlib.patches import Rectangle
+
+        # Estado visual independiente para cada mecanismo.
+        franjas_controles = {
+            "riego": {
+                "eje": eje_humedad,
+                "color": "deepskyblue",
+                "franja": None,
+                "activo": False,
+            },
+            "ventilacion": {
+                "eje": eje_temperatura,
+                "color": "orange",
+                "franja": None,
+                "activo": False,
+            },
+            "luz": {
+                "eje": eje_luz,
+                "color": "purple",
+                "franja": None,
+                "activo": False,
+            },
+        }
+
+        def actualizar_franja_control(nombre, tiempo, activo):
+            control_visual = franjas_controles[nombre]
+            eje = control_visual["eje"]
+
+            # Crear una franja únicamente cuando comienza la actividad.
+            if activo and not control_visual["activo"]:
+                eje.axvline(
+                    tiempo,
+                    color=control_visual["color"],
+                    linestyle=":",
+                    linewidth=1.2,
+                    alpha=0.9,
+                    zorder=2,
+                )
+
+                franja = Rectangle(
+                    (tiempo, 0),
+                    0,
+                    1,
+                    transform=eje.get_xaxis_transform(),
+                    facecolor=control_visual["color"],
+                    alpha=0.30,
+                    linewidth=0,
+                    zorder=1,
+                )
+                eje.add_patch(franja)
+                control_visual["franja"] = franja
+
+            # Extender la franja existente mientras siga activo.
+            if activo:
+                franja = control_visual["franja"]
+                inicio = franja.get_x()
+                franja.set_width(max(0, tiempo - inicio))
+
+            # Recordar el estado para detectar futuras activaciones.
+            control_visual["activo"] = activo
+
+        def reiniciar_franjas():
+            for control_visual in franjas_controles.values():
+                franja = control_visual["franja"]
+
+                if franja is not None:
+                    franja.remove()
+
+                control_visual["franja"] = None
+                control_visual["activo"] = False
+
         # Guardar los datos parciales de la sesión compartida.
         datos_simulacion_actual["resultados"] = resultados
         datos_simulacion_actual["parametros"] = p
@@ -931,6 +1071,51 @@ def main():
         linea_crecimiento.set_data(
             tiempo, resultados["crecimiento"]
         )
+
+        # Reiniciar el sombreado al comenzar una nueva simulación.
+        if evento == "reinicio":
+            reiniciar_franjas()
+
+        # Actualizar únicamente el estado visual más reciente.
+        actualizar_franja_control(
+            "riego",
+            tiempo[-1],
+            resultados["riego"][-1],
+        )
+
+        actualizar_franja_control(
+            "ventilacion",
+            tiempo[-1],
+            resultados["ventilacion"][-1],
+        )
+
+        actualizar_franja_control(
+            "luz",
+            tiempo[-1],
+            resultados["luz_artificial"][-1],
+        )
+
+        # Estado visual independiente para cada mecanismo.
+        franjas_controles = {
+            "riego": {
+                "eje": eje_humedad,
+                "color": "deepskyblue",
+                "franja": None,
+                "activo": False,
+            },
+            "ventilacion": {
+                "eje": eje_temperatura,
+                "color": "orange",
+                "franja": None,
+                "activo": False,
+            },
+            "luz": {
+                "eje": eje_luz,
+                "color": "purple",
+                "franja": None,
+                "activo": False,
+            },
+        }
 
 
         # Ajustar los ejes al rango de datos actual.
