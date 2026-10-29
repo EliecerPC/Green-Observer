@@ -205,6 +205,33 @@ def main():
     eje_crecimiento.set_ylabel("Crecimiento")
     eje_crecimiento.grid(True, alpha=0.3)
 
+    # Crear las series una sola vez.
+    (linea_temp,) = eje_temperatura.plot(
+        [], [], label="Temperatura interior"
+    )
+    (linea_temp_ambiental,) = eje_temperatura.plot(
+        [], [], label="Temperatura ambiental", linestyle="--"
+    )
+
+    (linea_humedad,) = eje_humedad.plot(
+        [], [], label="Humedad del suelo"
+    )
+
+    (linea_luz_natural,) = eje_luz.plot(
+        [], [], label="Luz natural"
+    )
+    (linea_luz_total,) = eje_luz.plot(
+        [], [], label="Luz total", linestyle="--"
+    )
+
+    (linea_crecimiento,) = eje_crecimiento.plot(
+        [], [], label="Crecimiento de la planta"
+    )
+
+    # Configurar las leyendas una sola vez.
+    for eje in ejes:
+        eje.legend(fontsize=8)
+
     figura.subplots_adjust(
         hspace=0.75,
         top=0.97,
@@ -842,68 +869,42 @@ def main():
             )
 
         # Reconstruir las gráficas con todos los datos disponibles.
-        eje_temperatura.clear()
-        eje_temperatura.plot(
-            resultados["tiempo"],
-            resultados["temperatura"],
-            label="Temperatura interior",
-        )
-        eje_temperatura.plot(
-            resultados["tiempo"],
-            resultados["temperatura_ambiental"],
-            label="Temperatura ambiental",
-            linestyle="--",
-        )
-        eje_temperatura.set_title("Temperatura")
-        eje_temperatura.set_xlabel("Tiempo (minutos)")
-        eje_temperatura.set_ylabel("Temperatura (°C)")
-        eje_temperatura.legend(fontsize=8)
-        eje_temperatura.grid(True, alpha=0.3)
+        # Actualizar las series sin reconstruir los ejes.
+        tiempo = resultados["tiempo"]
 
-        eje_humedad.clear()
-        eje_humedad.plot(
-            resultados["tiempo"],
-            resultados["humedad"],
-            label="Humedad del suelo",
+        linea_temp.set_data(
+            tiempo, resultados["temperatura"]
         )
-        eje_humedad.set_title("Humedad del suelo")
-        eje_humedad.set_xlabel("Tiempo (minutos)")
-        eje_humedad.set_ylabel("Humedad (%)")
+        linea_temp_ambiental.set_data(
+            tiempo, resultados["temperatura_ambiental"]
+        )
+
+        linea_humedad.set_data(
+            tiempo, resultados["humedad"]
+        )
+
+        linea_luz_natural.set_data(
+            tiempo, resultados["luminosidad_natural"]
+        )
+        linea_luz_total.set_data(
+            tiempo, resultados["luminosidad_total"]
+        )
+
+        linea_crecimiento.set_data(
+            tiempo, resultados["crecimiento"]
+        )
+
+        # Ajustar los ejes al rango de datos actual.
+        for eje in ejes:
+            eje.relim()
+            eje.autoscale_view()
+            eje.set_xlim(left=0)
+
+        # La humedad siempre se representa entre 0 y 100 %.
         eje_humedad.set_ylim(0, 100)
-        eje_humedad.legend(fontsize=8)
-        eje_humedad.grid(True, alpha=0.3)
-
-        eje_luz.clear()
-        eje_luz.plot(
-            resultados["tiempo"],
-            resultados["luminosidad_natural"],
-            label="Luz natural",
-        )
-        eje_luz.plot(
-            resultados["tiempo"],
-            resultados["luminosidad_total"],
-            label="Luz total",
-            linestyle="--",
-        )
-        eje_luz.set_title("Luminosidad")
-        eje_luz.set_xlabel("Tiempo (minutos)")
-        eje_luz.set_ylabel("Luminosidad")
-        eje_luz.legend(fontsize=8)
-        eje_luz.grid(True, alpha=0.3)
-
-        eje_crecimiento.clear()
-        eje_crecimiento.plot(
-            resultados["tiempo"],
-            resultados["crecimiento"],
-            label="Crecimiento de la planta",
-        )
-        eje_crecimiento.set_title("Crecimiento de la planta")
-        eje_crecimiento.set_xlabel("Tiempo (minutos)")
-        eje_crecimiento.set_ylabel("Crecimiento")
-        eje_crecimiento.legend(fontsize=8)
-        eje_crecimiento.grid(True, alpha=0.3)
 
         lienzo.draw_idle()
+
         actualizar_area_graficas()
 
         # Permitir consultar cualquier instante registrado hasta ahora.
@@ -981,7 +982,7 @@ def main():
         nonlocal sesion_actual
 
         try:
-            # Actualizar los parámetros internos solicitados por GreenHouse.
+            # Validar y cargar el escenario solicitado por GreenHouse.
             if nombre_escenario is not None:
                 if nombre_escenario not in escenarios:
                     raise ValueError(
@@ -993,13 +994,20 @@ def main():
 
             parametros_escenario = obtener_parametros_configurados()
 
-            # Crear una nueva sesión con los parámetros seleccionados.
-            sesion_actual = SesionSimulacion(
+            # Detener la sesión anterior antes de reemplazarla.
+            if sesion_actual is not None:
+                sesion_actual.pausar()
+                sesion_actual.desuscribir(actualizar_control_center)
+
+            # Crear una única sesión para las dos ventanas.
+            nueva_sesion = SesionSimulacion(
                 ventana,
                 parametros_escenario
             )
 
-            # Registrar el estado inicial y preparar las vistas.
+            # Actualizar la referencia compartida.
+            sesion_actual = nueva_sesion
+
             datos_simulacion_actual["resultados"] = (
                 sesion_actual.resultados
             )
@@ -1007,9 +1015,10 @@ def main():
                 parametros_escenario
             )
 
+            # Conectar Control Center con la nueva sesión.
             sesion_actual.suscribir(actualizar_control_center)
 
-            # Comenzar a avanzar paso a paso.
+            # Iniciar el avance de la simulación.
             sesion_actual.iniciar()
 
             return sesion_actual
@@ -1026,9 +1035,7 @@ def main():
                 str(error)
             )
 
-        return None
-
-
+            return None
 
     def exportar_csv():
         resultados = datos_simulacion_actual["resultados"]

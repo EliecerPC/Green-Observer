@@ -354,22 +354,6 @@ def abrir_invernadero(
         sesion.suscribir(actualizar_datos)
 
 
-    def pausar_simulacion():
-        sesion.pausar()
-
-    def iniciar_simulacion():
-        velocidad = float(
-            velocidad_var.get().replace("x", "")
-        )
-
-        intervalo = int(1000 / velocidad)
-
-        sesion.iniciar(intervalo)
-
-    def reiniciar_simulacion():
-        sesion.reiniciar()
-
-
     # Panel de controles.
     panel_controles = ttk.Frame(ventana)
     panel_controles.pack(pady=5)
@@ -435,15 +419,20 @@ def abrir_invernadero(
     )
     selector_velocidad.pack(side="left", padx=5)
 
-    def cambiar_velocidad(event=None):
-        if sesion is None:
-            return
+    def cambiar_velocidad(self, intervalo_ms):
+        """Cambiar la velocidad sin perder el estado de la simulación."""
+        if intervalo_ms <= 0:
+            raise ValueError(
+                "El intervalo debe ser mayor que cero."
+            )
 
-        velocidad = float(
-            velocidad_var.get().replace("x", "")
-        )
-        intervalo = max(1, int(1000 / velocidad))
-        sesion.cambiar_velocidad(intervalo)
+        estaba_en_marcha = self.tarea is not None
+
+        self.intervalo_ms = intervalo_ms
+
+        if estaba_en_marcha:
+            self.pausar()
+            self.iniciar()
 
     selector_velocidad.bind(
         "<<ComboboxSelected>>",
