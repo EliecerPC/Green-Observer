@@ -330,6 +330,36 @@ def main():
     selector_paso.pack(anchor="w", pady=(10, 0))
     selector_paso.set("0")
 
+
+    # Botones para navegar entre los pasos de cálculo
+    marco_navegacion = ttk.Frame(calculos)
+    marco_navegacion.pack(anchor="w", pady=(8, 0))
+
+    ttk.Button(
+        marco_navegacion,
+        text="|< Primer paso",
+        command=lambda: navegar_paso("primero")
+    ).pack(side="left", padx=(0, 4))
+
+    ttk.Button(
+        marco_navegacion,
+        text="< Anterior",
+        command=lambda: navegar_paso("anterior")
+    ).pack(side="left", padx=4)
+
+    ttk.Button(
+        marco_navegacion,
+        text="Siguiente >",
+        command=lambda: navegar_paso("siguiente")
+    ).pack(side="left", padx=4)
+
+    ttk.Button(
+        marco_navegacion,
+        text="Último paso >|",
+        command=lambda: navegar_paso("ultimo")
+    ).pack(side="left", padx=4)
+
+
     etiqueta_paso = ttk.Label(
         calculos,
         text="Instante: sin simulación"
@@ -991,6 +1021,52 @@ def main():
             valor = "0"
 
         mostrar_calculos(resultados, p, int(valor))
+
+
+    def navegar_paso(direccion):
+        resultados = datos_simulacion_actual["resultados"]
+
+        if resultados is None or not resultados["tiempo"]:
+            return
+
+        ultimo = len(resultados["tiempo"]) - 1
+
+        try:
+            actual = int(selector_paso.get())
+        except (ValueError, TypeError):
+            actual = 0
+
+        if direccion == "primero":
+            nuevo = 0
+        elif direccion == "anterior":
+            nuevo = max(0, actual - 1)
+        elif direccion == "siguiente":
+            nuevo = min(ultimo, actual + 1)
+        elif direccion == "ultimo":
+            nuevo = ultimo
+        else:
+            return
+
+        selector_paso.set(str(nuevo))
+        cambiar_paso(nuevo)
+
+    selector_paso.bind(
+        "<<Increment>>",
+        lambda evento: cambiar_paso()
+    )
+    selector_paso.bind(
+        "<<Decrement>>",
+        lambda evento: cambiar_paso()
+    )
+    selector_paso.bind(
+        "<Return>",
+        lambda evento: cambiar_paso()
+    )
+    selector_paso.bind(
+        "<FocusOut>",
+        lambda evento: cambiar_paso()
+    )
+
 
     def ejecutar_simulacion(nombre_escenario=None):
         nonlocal sesion_actual
