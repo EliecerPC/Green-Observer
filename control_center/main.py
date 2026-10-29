@@ -730,17 +730,25 @@ def main():
         for clave, entrada in entradas_parametros.items():
             texto = entrada.get().strip()
 
-            # Si el campo está vacío, conservar el valor del escenario.
+
+            # Si está vacío, recuperar y mostrar el valor del escenario.
             if not texto:
-                cambios[clave] = getattr(p, clave)
+                valor_base = getattr(p, clave)
+                cambios[clave] = valor_base
+
+                entrada.delete(0, "end")
+                entrada.insert(0, str(valor_base))
                 continue
+
 
             try:
                 cambios[clave] = float(texto)
             except ValueError:
+                nombre_campo = campos_parametros[clave][0]
                 raise ValueError(
-                    f"El campo '{clave}' debe contener un número válido."
+                    f"El campo '{nombre_campo}' debe contener un número válido."
                 )
+
 
         cambios["control_activo"] = control_automatico.get()
         cambios["luz_artificial_activa"] = (

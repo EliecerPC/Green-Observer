@@ -476,7 +476,6 @@ def abrir_invernadero(
                 escalar_x(x + 30), escalar_y(420 - altura - 5)
             )
 
-        indice_actual += 1
 
 
     def conectar_sesion(nueva_sesion):
@@ -558,25 +557,29 @@ def abrir_invernadero(
     )
     selector_velocidad.pack(side="left", padx=5)
 
-    def cambiar_velocidad(self, intervalo_ms):
-        """Cambiar la velocidad sin perder el estado de la simulación."""
-        if intervalo_ms <= 0:
-            raise ValueError(
-                "El intervalo debe ser mayor que cero."
+
+    def cambiar_velocidad(event=None):
+        """Aplicar la velocidad seleccionada a la sesión compartida."""
+        if sesion is None:
+            # La velocidad elegida se aplicará cuando se inicie la sesión.
+            return
+
+        try:
+            velocidad = float(velocidad_var.get().replace("x", ""))
+            intervalo_ms = max(1, round(1000 / velocidad))
+            sesion.cambiar_velocidad(intervalo_ms)
+
+        except (ValueError, ZeroDivisionError):
+            messagebox.showerror(
+                "Velocidad no válida",
+                "Selecciona una velocidad válida."
             )
-
-        estaba_en_marcha = self.tarea is not None
-
-        self.intervalo_ms = intervalo_ms
-
-        if estaba_en_marcha:
-            self.pausar()
-            self.iniciar()
 
     selector_velocidad.bind(
         "<<ComboboxSelected>>",
         cambiar_velocidad
     )
+
 
     def iniciar_simulacion():
         if sesion is None:

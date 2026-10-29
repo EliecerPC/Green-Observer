@@ -74,6 +74,25 @@ class SesionSimulacion:
         self.simulador.paso()
         self.notificar("reinicio")
 
+
     def cambiar_velocidad(self, intervalo_ms):
-        """Cambiar el intervalo entre actualizaciones."""
+        """Cambiar la velocidad sin perder el estado de la simulación."""
+        if isinstance(intervalo_ms, bool) or not isinstance(
+            intervalo_ms, (int, float)
+        ):
+            raise ValueError("El intervalo debe ser un número positivo.")
+
+        if intervalo_ms <= 0:
+            raise ValueError("El intervalo debe ser un número positivo.")
+
+        intervalo_ms = max(1, round(intervalo_ms))
+        estaba_en_marcha = self.tarea is not None
+
+        if estaba_en_marcha:
+            self.pausar()
+
         self.intervalo_ms = intervalo_ms
+
+        if estaba_en_marcha:
+            self.iniciar()
+
