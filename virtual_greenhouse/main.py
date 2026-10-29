@@ -147,6 +147,109 @@ def abrir_invernadero(
         width=3
     )
 
+    # Sistema visual de riego.
+    escena.create_rectangle(
+        110, 235, 145, 280,
+        fill="#78909C",
+        outline="#455A64",
+        width=2
+    )
+
+    escena.create_line(
+        127, 235, 127, 215,
+        fill="#455A64",
+        width=5
+    )
+
+    escena.create_line(
+        127, 215, 300, 215,
+        fill="#455A64",
+        width=5
+    )
+
+    # Aspersor.
+    escena.create_line(
+        280, 215, 280, 230,
+        fill="#455A64",
+        width=5
+    )
+
+    # Gotas visibles solo durante el riego.
+    gotas_riego = []
+
+    for x, y in ((265, 250), (280, 260), (295, 250),
+                 (275, 280), (290, 285)):
+        gota = escena.create_oval(
+            x, y, x + 7, y + 12,
+            fill="#29B6F6",
+            outline="#0288D1",
+            state="hidden"
+        )
+        gotas_riego.append(gota)
+
+    etiqueta_riego_visual = escena.create_text(
+        220, 300,
+        text="RIEGO INACTIVO",
+        fill="#37474F",
+        font=("Arial", 11, "bold")
+    )
+
+    # Ventilador instalado en la pared derecha.
+    centro_x = 850
+    centro_y = 270
+
+    marco_ventilador = escena.create_oval(
+        centro_x - 35, centro_y - 35,
+        centro_x + 35, centro_y + 35,
+        outline="#455A64",
+        width=4
+    )
+
+    aspas_ventilador = [
+        escena.create_polygon(
+            centro_x, centro_y,
+            centro_x - 10, centro_y - 28,
+            centro_x + 10, centro_y - 28,
+            fill="#90A4AE",
+            outline="#455A64"
+        ),
+        escena.create_polygon(
+            centro_x, centro_y,
+            centro_x + 28, centro_y - 10,
+            centro_x + 28, centro_y + 10,
+            fill="#90A4AE",
+            outline="#455A64"
+        ),
+        escena.create_polygon(
+            centro_x, centro_y,
+            centro_x - 10, centro_y + 28,
+            centro_x + 10, centro_y + 28,
+            fill="#90A4AE",
+            outline="#455A64"
+        ),
+        escena.create_polygon(
+            centro_x, centro_y,
+            centro_x - 28, centro_y - 10,
+            centro_x - 28, centro_y + 10,
+            fill="#90A4AE",
+            outline="#455A64"
+        ),
+    ]
+
+    centro_ventilador = escena.create_oval(
+        centro_x - 7, centro_y - 7,
+        centro_x + 7, centro_y + 7,
+        fill="#37474F",
+        outline=""
+    )
+
+    etiqueta_ventilacion_visual = escena.create_text(
+        centro_x, centro_y + 55,
+        text="VENTILACIÓN INACTIVA",
+        fill="#37474F",
+        font=("Arial", 10, "bold")
+    )
+
     # Plantas vinculadas al crecimiento del modelo.
     plantas = []
 
@@ -236,6 +339,42 @@ def abrir_invernadero(
         crecimiento = resultados["crecimiento"][indice_actual]
         hora = resultados["hora"][indice_actual]
         luminosidad = resultados["luminosidad_natural"][indice_actual]
+
+        # Actualizar el sistema visual de riego.
+        riego_activo = resultados["riego"][indice_actual]
+
+        for gota in gotas_riego:
+            escena.itemconfigure(
+                gota,
+                state="normal" if riego_activo else "hidden"
+            )
+
+        escena.itemconfigure(
+            etiqueta_riego_visual,
+            text="RIEGO ACTIVO" if riego_activo else "RIEGO INACTIVO",
+            fill="#0288D1" if riego_activo else "#37474F"
+        )
+
+        # Actualizar el sistema visual de ventilación.
+        ventilacion_activa = resultados["ventilacion"][indice_actual]
+
+        color_ventilador = "#43A047" if ventilacion_activa else "#90A4AE"
+
+        for aspa in aspas_ventilador:
+            escena.itemconfigure(
+                aspa,
+                fill=color_ventilador
+            )
+
+        escena.itemconfigure(
+            etiqueta_ventilacion_visual,
+            text=(
+                "VENTILACIÓN ACTIVA"
+                if ventilacion_activa
+                else "VENTILACIÓN INACTIVA"
+            ),
+            fill="#2E7D32" if ventilacion_activa else "#37474F"
+        )
 
         # Actualizar el cielo, el sol y la luna.
         if 6 <= hora < 18:
@@ -358,7 +497,7 @@ def abrir_invernadero(
     panel_controles = ttk.Frame(ventana)
     panel_controles.pack(pady=5)
 
-    # Selección del escenario.
+    # Selección del escenario
     escenarios = obtener_escenarios()
 
     ttk.Label(
