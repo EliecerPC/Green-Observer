@@ -894,11 +894,17 @@ def main():
             tiempo, resultados["crecimiento"]
         )
 
+
         # Ajustar los ejes al rango de datos actual.
         for eje in ejes:
             eje.relim()
             eje.autoscale_view()
-            eje.set_xlim(left=0)
+
+            eje.set_xlim(
+                left=0,
+                right=max(tiempo[-1], 1)
+            )
+
 
         # La humedad siempre se representa entre 0 y 100 %.
         eje_humedad.set_ylim(0, 100)
